@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Survive The Night!</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #333;
+    }
+    #gameCanvas {
+      background-color: #FFFFFF;
+      border: 2px solid #000;
+    }
+    #scorecard, #healthbar {
+      font-size: 18px;
+      color: #fff;
+      margin: 10px;
+    }
+    #startScreen, #gameOverScreen {
+      position: absolute;
+      top: 25%;
+      color: #FF0000;
+      text-align: center;
+      display: none;
+    }
+    #startScreen button, #gameOverScreen button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #flashImage {
+      display: none;
+      position: absolute;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="scorecard">Score: 0</div>
+  <div id="healthbar">Health: 100</div>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <div id="startScreen">
+    <h1>Survive The Night!</h1>
+    <p>"Space" Shoot, "Up" Jump, "Down" Duck, "Right", and "Left"</p>
+    <p>Press "Start" to begin</p>
+    <button onclick="startGame()">Start</button>
+  </div>
+
+  <div id="gameOverScreen">
+    <h1>Game Over</h1>
+    <p>Your final score: <span id="finalScore">0</span></p>
+    <button onclick="restartGame()">Restart</button>
+  </div>
+
+  <img id="flashImage" src="C:/Users/treys/OneDrive/Senior Year/Generative AI/cat.png" style="display: none; position: absolute; top: 80px; left: 50%; transform: translateX(-50%); z-index: 10;">
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreDisplay = document.getElementById('scorecard');
+    const healthDisplay = document.getElementById('healthbar');
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScore = document.getElementById('finalScore');
+
+    let score = 0;
+    let health = 100;
+    let gameRunning = false;
+    let player = { x: 50, y: 500, width: 60, height: 60, jumping: false, ducking: false };
+    let obstacles = [];
+    let flyingEnemies = [];
+    let projectiles = [];
+    let hearts = [];
+    let bombs = [];
+    let obstacleSpeed = 2;
+    let objectInterval;
+
+    // Load images
+    const images = {
+      player: new Image(),
+      obstacle: new Image(),
+      flyingEnemy: new Image(),
+      heart: new Image(),
+      bomb: new Image(),
+      background: new Image() // Add a background image
+    };
+
+    images.player.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/Player.jpg";
+    images.obstacle.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/obstacle.png";
+    images.flyingEnemy.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/flying.png";
+    images.heart.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/heart.png";
+    images.bomb.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/bomb.png";
+    images.background.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/street.jpg"; 
+
+    function startGame() {
+      score = 0;
+      health = 100;
+      obstacleSpeed = 2;
+      obstacles = [];
+      flyingEnemies = [];
+      projectiles = [];
+      hearts = [];
+      bombs = [];
+      player.jumping = false;
+      player.ducking = false;
+      gameRunning = true;
+      startScreen.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      objectInterval = setInterval(generateObjects, 1500);
+      requestAnimationFrame(updateGame);
+    }
+
+    function restartGame() {
+      startGame();
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      clearInterval(objectInterval);
+      finalScore.textContent = score;
+      gameOverScreen.style.display = 'block';
+    }
+
+    function generateObjects() {
+      const randomObj = Math.random();
+      if (randomObj < 0.5) {
+        obstacles.push({ x: canvas.width, y: Math.random() * 100 + 450, width: 30, height: 30 });
+      } else if (randomObj < 0.8) {
+        flyingEnemies.push({ x: canvas.width, y: Math.random() * 100 + 370, width: 40, height: 40, speedY: (Math.random() * 1.5 - 0.75), movingTowardsPlayer: true });
+      } else if (randomObj < 0.85) {
+        hearts.push({ x: canvas.width, y: 500, width: 20, height: 20 });
+      }
+      obstacleSpeed += 0.1;  // Increase speed over time
+    }
+
+    function updateGame() {
+      if (!gameRunning) return;
+
+      // Draw the background image
+      ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+
+      updatePlayer();
+      updateObstacles();
+      updateFlyingEnemies();
+      updateProjectiles();
+      updateHearts();
+      updateBombs();
+      updateScoreHealth();
+      checkCollisions();
+
+      requestAnimationFrame(updateGame);
+    }
+
+    function updatePlayer() {
+      if (player.ducking) {
+        ctx.drawImage(images.player, player.x, player.y + 10, player.width, player.height - 10); // Smaller hitbox for ducking
+      } else {
+        ctx.drawImage(images.player, player.x, player.y, player.width, player.height);
+      }
+    }
+
+    function updateObstacles() {
+      obstacles = obstacles.filter(obj => obj.x + obj.width > 0);
+      obstacles.forEach(obj => {
+        obj.x -= obstacleSpeed;
+        ctx.drawImage(images.obstacle, obj.x, obj.y, obj.width, obj.height);
+      });
+    }
+
+    function updateFlyingEnemies() {
+      flyingEnemies = flyingEnemies.filter(enemy => enemy.x + enemy.width > 0);
+      flyingEnemies.forEach(enemy => {
+        enemy.x -= obstacleSpeed;
+        if (enemy.movingTowardsPlayer) {
+          enemy.y += (player.y - enemy.y) * 0.01; // Moves toward player's y position
+        } else {
+          enemy.y += enemy.speedY; // Slight vertical random movement
+        }
+        ctx.drawImage(images.flyingEnemy, enemy.x, enemy.y, enemy.width, enemy.height);
+      });
+    }
+
+    function updateProjectiles() {
+      projectiles = projectiles.filter(proj => proj.x < canvas.width);
+      
+      projectiles.forEach((proj, projIndex) => {
+        proj.x += 5; // Speed of the projectile
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
+
+        // Check for collision with flying enemies
+        flyingEnemies.forEach((enemy, enemyIndex) => {
+          if (
+            proj.x < enemy.x + enemy.width &&
+            proj.x + proj.width > enemy.x &&
+            proj.y < enemy.y + enemy.height &&
+            proj.y + proj.height > enemy.y  
+          ) {
+            // Remove both projectile and enemy upon collision
+            flyingEnemies.splice(enemyIndex, 1);
+            projectiles.splice(projIndex, 1);
+            score += 20; // Increase score for hitting a flying enemy
+          }
+        });
+      });
+    }
+
+    function updateHearts() {
+      hearts = hearts.filter(heart => heart.x + heart.width > 0);
+      hearts.forEach(heart => {
+        heart.x -= obstacleSpeed;
+        ctx.drawImage(images.heart, heart.x, heart.y, heart.width, heart.height);
+      });
+    }
+
+    function updateBombs() {
+      bombs = bombs.filter(bomb => bomb.x + bomb.width > 0);
+      bombs.forEach(bomb => {
+        bomb.x -= obstacleSpeed;
+        ctx.drawImage(images.bomb, bomb.x, bomb.y, bomb.width, bomb.height);
+      });
+    }
+
+    function updateScoreHealth() {
+      scoreDisplay.textContent = `Score: ${score}`;
+      healthDisplay.textContent = `Health: ${health}`;
+
+      // Check if score is a multiple of 100 and show the flash image
+      if (score > 0 && (score % 100 === 0 || score % 110 === 0)) {
+          showFlashImage();
+      }
+    }
+
+    function showFlashImage() {
+      const flashImage = document.getElementById('flashImage');
+      flashImage.style.display = 'block';
+      setTimeout(() => {
+          flashImage.style.display = 'none';
+      }, 500); // Hide after 1 second
+    }
+
+    function checkCollisions() {
+      obstacles.forEach((obj, index) => {
+        if (playerCollides(obj) && !player.ducking) {
+            health -= 10;
+            obstacles.splice(index, 1);
+            if (health <= 0) gameOver();
+        } else if (obj.x + obj.width < player.x) {
+            score += 10; // Score increases when the player avoids the obstacle
+            obstacles.splice(index, 1);
+        }
+      });
+
+      flyingEnemies.forEach((enemy, index) => {
+        if (playerCollides(enemy) && !player.ducking) {
+            health -= 20;
+            flyingEnemies.splice(index, 1);
+            if (health <= 0) gameOver();
+        } else if (enemy.x + enemy.width < player.x) {
+            score += 20; // Score increases when the player avoids the flying enemy
+            flyingEnemies.splice(index, 1);
+        }
+      });
+
+      hearts.forEach((heart, index) => {
+        if (playerCollides(heart)) {
+            health += 10;
+            hearts.splice(index, 1);
+        }
+      });
+
+      bombs.forEach((bomb, index) => {
+        if (playerCollides(bomb)) {
+            health -= 30;
+            bombs.splice(index, 1);
+            if (health <= 0) gameOver();
+        }
+      });
+    }
+
+    function playerCollides(obj) {
+      return player.x < obj.x + obj.width &&
+          player.x + player.width > obj.x &&
+          player.y < obj.y + obj.height &&
+          player.y + player.height > obj.y;
+    }
+
+    document.addEventListener('keydown', (event) => {
+      switch(event.code) {
+        case 'Space':
+          projectiles.push({ x: player.x + player.width, y: player.y + player.height / 2 - 2, width: 10, height: 5 });
+          break;
+        case 'ArrowUp':
+          if (!player.jumping) {
+            player.jumping = true;
+            let jumpHeight = 0;
+            const jumpInterval = setInterval(() => {
+              if (jumpHeight < 100) {
+                player.y -= 5; // Adjust this value for jump height
+                jumpHeight += 5;
+              } else {
+                clearInterval(jumpInterval);
+                player.jumping = false;
+                const fallInterval = setInterval(() => {
+                  if (player.y < 500) {
+                    player.y += 5; // Return to the ground level
+                  } else {
+                    clearInterval(fallInterval);
+                  }
+                }, 20);
+              }
+            }, 20);
+          }
+          break;
+        case 'ArrowDown':
+          player.ducking = true;
+          break;
+        case 'ArrowLeft':
+          player.x -= 10; // Move left
+          break;
+        case 'ArrowRight':
+          player.x += 10; // Move right
+          break;
+      }
+    });
+
+    document.addEventListener('keyup', (event) => {
+      if (event.code === 'ArrowDown') {
+        player.ducking = false;
+      }
+    });
+
+    startScreen.style.display = 'block'; // Show the start screen when the page loads
+  </script>
+</body>
+</html>
