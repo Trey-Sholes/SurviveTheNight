@@ -53,7 +53,7 @@
     <h1>Survive The Night!</h1>
     <p>"Space" Shoot, "Up" Jump, "Down" Duck, "Right", and "Left"</p>
     <p>Press "Start" to begin</p>
-    <button onclick="startGame()">Start</button>
+    <button onclick="backgroundMusic.play(); startGame()">Start</button>
   </div>
 
   <div id="gameOverScreen">
@@ -62,7 +62,14 @@
     <button onclick="restartGame()">Restart</button>
   </div>
 
-  <img id="flashImage" src="C:/Users/treys/OneDrive/Senior Year/Generative AI/cat.png" style="display: none; position: absolute; top: 80px; left: 50%; transform: translateX(-50%); z-index: 10;">
+  <img id="flashImage" src="./images/cat.png" style="display: none; position: absolute; top: 80px; left: 50%; transform: translateX(-50%); z-index: 10;">
+
+<audio id="backgroundMusic" src="./images/halloween-night-257698.mp3" loop></audio>
+<audio id="popUpSound" src="./images/fnaf-freddy-laugh-made-with-Voicemod.mp3" loop></audio>
+<audio id="gameOverSound" src="./images/sad-song-made-with-Voicemod.mp3" loop></audio>
+<audio id="healthLossSound" src="./images/hit---minecraft---sfx-made-with-Voicemod.mp3"></audio>
+
+
 
   <script>
     const canvas = document.getElementById('gameCanvas');
@@ -72,6 +79,7 @@
     const startScreen = document.getElementById('startScreen');
     const gameOverScreen = document.getElementById('gameOverScreen');
     const finalScore = document.getElementById('finalScore');
+    const backgroundSpeed = 2;
 
     let score = 0;
     let health = 100;
@@ -84,6 +92,7 @@
     let bombs = [];
     let obstacleSpeed = 2;
     let objectInterval;
+    let backgroundX = 0;
 
     // Load images
     const images = {
@@ -95,12 +104,14 @@
       background: new Image() // Add a background image
     };
 
-    images.player.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/Player.jpg";
-    images.obstacle.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/obstacle.png";
-    images.flyingEnemy.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/flying.png";
-    images.heart.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/heart.png";
-    images.bomb.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/bomb.png";
-    images.background.src = "C:/Users/treys/OneDrive/Senior Year/Generative AI/street.jpg"; 
+images.player.src = "./images/Player.jpg";
+images.obstacle.src = "./images/obstacle.png";
+images.flyingEnemy.src = "./images/flying.png";
+images.heart.src = "./images/heart.png";
+images.bomb.src = "./images/bomb.png";
+images.background.src = "./images/street.jpg";
+
+const backgroundMusic = document.getElementById('backgroundMusic');
 
     function startGame() {
       score = 0;
@@ -116,11 +127,15 @@
       gameRunning = true;
       startScreen.style.display = 'none';
       gameOverScreen.style.display = 'none';
+      backgroundMusic.play();
       objectInterval = setInterval(generateObjects, 1500);
       requestAnimationFrame(updateGame);
     }
 
     function restartGame() {
+      const gameOverSound = document.getElementById('gameOverSound');
+      gameOverSound.pause();      // Stop the game over sound
+      gameOverSound.currentTime = 0; // Reset the audio to the start
       startGame();
     }
 
@@ -129,6 +144,10 @@
       clearInterval(objectInterval);
       finalScore.textContent = score;
       gameOverScreen.style.display = 'block';
+      backgroundMusic.pause();
+      backgroundMusic.currentTime = 0;
+      const gameOverSound = document.getElementById('gameOverSound');
+      gameOverSound.play();
     }
 
     function generateObjects() {
@@ -146,8 +165,15 @@
     function updateGame() {
       if (!gameRunning) return;
 
-      // Draw the background image
-      ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+     // Update background position and reset for a looping effect
+       backgroundX -= backgroundSpeed;
+       if (backgroundX <= -canvas.width) {
+       backgroundX = 0; // Reset position when it scrolls off screen
+       }
+
+  // Draw two background images to create a seamless looping effect
+      ctx.drawImage(images.background, backgroundX, 0, canvas.width, canvas.height);
+      ctx.drawImage(images.background, backgroundX + canvas.width, 0, canvas.width, canvas.height);
 
       updatePlayer();
       updateObstacles();
@@ -243,10 +269,14 @@
 
     function showFlashImage() {
       const flashImage = document.getElementById('flashImage');
+      const popUpSound = document.getElementById('popUpSound');
       flashImage.style.display = 'block';
+      popUpSound.play();
       setTimeout(() => {
           flashImage.style.display = 'none';
-      }, 500); // Hide after 1 second
+	  popUpSound.pause();      // Stop the sound effect
+          popUpSound.currentTime = 0; // Reset the audio to the start
+      }, 2500); // Hide after 1 second
     }
 
     function checkCollisions() {
@@ -254,6 +284,13 @@
         if (playerCollides(obj) && !player.ducking) {
             health -= 10;
             obstacles.splice(index, 1);
+
+             // Play health loss sound
+            const healthLossSound = document.getElementById('healthLossSound');
+            healthLossSound.currentTime = 0; // Reset sound to the start
+            healthLossSound.play(); // Play the health loss sound
+
+
             if (health <= 0) gameOver();
         } else if (obj.x + obj.width < player.x) {
             score += 10; // Score increases when the player avoids the obstacle
@@ -265,6 +302,12 @@
         if (playerCollides(enemy) && !player.ducking) {
             health -= 20;
             flyingEnemies.splice(index, 1);
+
+            // Play health loss sound
+            const healthLossSound = document.getElementById('healthLossSound');
+            healthLossSound.currentTime = 0; // Reset sound to the start
+            healthLossSound.play(); // Play the health loss sound
+
             if (health <= 0) gameOver();
         } else if (enemy.x + enemy.width < player.x) {
             score += 20; // Score increases when the player avoids the flying enemy
